@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Common Living Expenses</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the input field when editing */
+        .editable-cell input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #cbd5e0; /* gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            outline: none;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+            font-family: "Inter", sans-serif; /* Ensure consistent font */
+        }
+        /* Ensure Inter font is used throughout */
+        body {
+            font-family: "Inter", sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 sm:p-8 flex items-center justify-center min-h-screen">
+    <div class="container mx-auto bg-white shadow-lg rounded-xl p-6 sm:p-8 max-w-4xl w-full">
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-800 mb-6 text-center">
+            📊 Common Living Expenses Chart
+        </h1>
+
+        <!-- Monthly Salary Section -->
+        <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <label for="monthlySalary" class="block text-lg font-semibold text-gray-700 mb-2">
+                💰 Monthly Salary (Estimated):
+            </label>
+            <div id="monthlySalaryDisplay" class="text-2xl font-bold text-blue-700 cursor-pointer p-2 rounded-md hover:bg-blue-100 transition-colors duration-200"
+                 data-numeric-value="0">
+                $0.00
+            </div>
+            <input type="text" id="monthlySalaryInput" class="hidden w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-2xl font-bold" placeholder="Enter monthly salary">
+        </div>
+
+        <div class="overflow-x-auto rounded-lg shadow-inner">
+            <table class="min-w-full bg-white border-collapse">
+                <thead class="bg-blue-600 text-white">
+                    <tr>
+                        <th class="py-3 px-4 text-left text-sm sm:text-base font-semibold rounded-tl-lg">Category</th>
+                        <th class="py-3 px-4 text-left text-sm sm:text-base font-semibold">Expense Description</th>
+                        <th class="py-3 px-4 text-left text-sm sm:text-base font-semibold rounded-tr-lg">Example Monthly Cost (Estimated)</th>
+                    </tr>
+                </thead>
+                <tbody id="expenseTableBody" class="text-gray-700">
+                    <!-- Data rows will be populated here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Remaining Balance Section -->
+        <div class="mt-8 p-4 bg-green-50 rounded-lg border border-green-200">
+            <label class="block text-lg font-semibold text-gray-700 mb-2">
+                ✨ Remaining Balance:
+            </label>
+            <div id="remainingBalanceDisplay" class="text-3xl font-bold text-green-700 p-2 rounded-md">
+                $0.00
+            </div>
+        </div>
+
+        <p class="mt-8 text-center text-gray-600 text-sm">
+            Click on any cell in the table or the monthly salary to edit its content. Press Enter or click outside to save changes.
+        </p>
+    </div>
+
+    <script>
+        // Data for the spreadsheet
+        const expenses = [
+            { category: "Housing", description: "Rent, mortgage, or room/board", cost: "$800 – $1,500+" },
+            { category: "Utilities", description: "Electricity, water, gas, trash", cost: "$100 – $250" },
+            { category: "Internet/Phone", description: "Mobile phone plan, home Wi-Fi", cost: "$50 – $120" },
+            { category: "Food/Groceries", description: "Grocery shopping, snacks, basic meals", cost: "$300 – $600" },
+            { category: "Transportation", description: "Gas, bus/train pass, car maintenance, Uber/Lyft", cost: "$100 – $400" },
+            { category: "Health Insurance", description: "Medical, dental, and vision insurance", cost: "$150 – $400" },
+            { category: "Personal Care", description: "Toiletries, hygiene, haircuts", cost: "$25 – $75" },
+            { category: "Entertainment", description: "Streaming services, eating out, hobbies", cost: "$50 – $150" },
+            { category: "Clothing", description: "Seasonal clothing, shoes, accessories", cost: "$25 – $100" },
+            { category: "Savings", description: "Emergency fund, future goals, retirement", cost: "Varies (10–20% of income recommended)" },
+            { category: "Debt Payments", description: "Student loans, credit cards, personal loans", cost: "Varies" },
+            { category: "Education", description: "Tuition, books, supplies (if in school)", cost: "Varies" },
+            { category: "Miscellaneous", description: "Gifts, donations, unexpected costs", cost: "$50 – $100" }
+        ];
+
+        const expenseTableBody = document.getElementById('expenseTableBody');
+        const monthlySalaryDisplay = document.getElementById('monthlySalaryDisplay');
+        const monthlySalaryInput = document.getElementById('monthlySalaryInput');
+        const remainingBalanceDisplay = document.getElementById('remainingBalanceDisplay');
+
+        // Helper function to parse a currency string into a float
+        function parseCurrencyToFloat(currencyString) {
+            if (!currencyString) return 0;
+            // Remove currency symbols, commas, and any non-numeric characters except the first dot
+            const cleanedString = currencyString.replace(/[^0-9.-]+/g, '');
+            // Try to parse the first number if it's a range (e.g., "800 – 1500" -> 800)
+            const match = cleanedString.match(/(\d+\.?\d*)/);
+            return match ? parseFloat(match[1]) : 0;
+        }
+
+        // Helper function to format a number into currency string
+        function formatFloatToCurrency(number) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(number);
+        }
+
+        // Function to render the table rows
+        function renderTable() {
+            expenseTableBody.innerHTML = ''; // Clear existing rows
+            expenses.forEach((expense, index) => {
+                const row = document.createElement('tr');
+                // Apply alternating row background for better readability
+                row.className = `border-b border-gray-200 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`;
+
+                // Create and append cells for Category, Description, and Cost
+                const categoryCell = document.createElement('td');
+                categoryCell.className = 'py-3 px-4 text-sm sm:text-base editable-cell';
+                categoryCell.textContent = expense.category;
+                categoryCell.setAttribute('data-column', 'category');
+                row.appendChild(categoryCell);
+
+                const descriptionCell = document.createElement('td');
+                descriptionCell.className = 'py-3 px-4 text-sm sm:text-base editable-cell';
+                descriptionCell.textContent = expense.description;
+                descriptionCell.setAttribute('data-column', 'description');
+                row.appendChild(descriptionCell);
+
+                const costCell = document.createElement('td');
+                costCell.className = 'py-3 px-4 text-sm sm:text-base editable-cell';
+                costCell.textContent = expense.cost;
+                // Store the parsed numeric value for calculation
+                costCell.setAttribute('data-numeric-value', parseCurrencyToFloat(expense.cost));
+                costCell.setAttribute('data-column', 'cost');
+                row.appendChild(costCell);
+
+                expenseTableBody.appendChild(row);
+            });
+        }
+
+        // Function to calculate and display the remaining balance
+        function calculateBalance() {
+            const monthlySalary = parseFloat(monthlySalaryDisplay.getAttribute('data-numeric-value')) || 0;
+            let totalExpenses = 0;
+
+            // Iterate through all cost cells and sum their numeric values
+            document.querySelectorAll('#expenseTableBody td[data-column="cost"]').forEach(cell => {
+                totalExpenses += parseFloat(cell.getAttribute('data-numeric-value')) || 0;
+            });
+
+            const remainingBalance = monthlySalary - totalExpenses;
+            remainingBalanceDisplay.textContent = formatFloatToCurrency(remainingBalance);
+
+            // Apply color based on balance
+            if (remainingBalance < 0) {
+                remainingBalanceDisplay.classList.remove('text-green-700');
+                remainingBalanceDisplay.classList.add('text-red-700');
+            } else {
+                remainingBalanceDisplay.classList.remove('text-red-700');
+                remainingBalanceDisplay.classList.add('text-green-700');
+            }
+        }
+
+        // Initialize table rendering and initial balance calculation on page load
+        window.onload = () => {
+            renderTable();
+            calculateBalance(); // Perform initial calculation
+        };
+
+        // Event listener for editing cells in the table
+        expenseTableBody.addEventListener('click', (event) => {
+            const target = event.target;
+
+            if (target.tagName === 'TD' && target.classList.contains('editable-cell')) {
+                const originalText = target.textContent;
+                const originalNumericValue = target.getAttribute('data-numeric-value'); // Get stored numeric value
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = originalNumericValue !== null ? originalNumericValue : originalText; // Prefer numeric value for editing
+                input.className = 'w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500';
+
+                target.innerHTML = '';
+                target.appendChild(input);
+                input.focus();
+
+                const saveChanges = () => {
+                    const newText = input.value.trim();
+                    const newNumericValue = parseCurrencyToFloat(newText); // Parse new input
+                    
+                    target.textContent = formatFloatToCurrency(newNumericValue); // Format for display
+                    target.setAttribute('data-numeric-value', newNumericValue); // Store numeric value
+                    
+                    calculateBalance(); // Recalculate balance after expense change
+                };
+
+                input.addEventListener('blur', saveChanges);
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        input.blur();
+                    }
+                });
+            }
+        });
+
+        // Monthly Salary Edit functionality
+        monthlySalaryDisplay.addEventListener('click', () => {
+            monthlySalaryDisplay.classList.add('hidden');
+            monthlySalaryInput.classList.remove('hidden');
+            // Set input value to the stored numeric value for precise editing
+            monthlySalaryInput.value = parseFloat(monthlySalaryDisplay.getAttribute('data-numeric-value')) || 0;
+            monthlySalaryInput.focus();
+        });
+
+        const saveMonthlySalary = () => {
+            let newSalaryText = monthlySalaryInput.value.trim();
+            const newSalaryNumeric = parseCurrencyToFloat(newSalaryText); // Parse new salary input
+
+            monthlySalaryDisplay.textContent = formatFloatToCurrency(newSalaryNumeric); // Format for display
+            monthlySalaryDisplay.setAttribute('data-numeric-value', newSalaryNumeric); // Store numeric value
+            
+            monthlySalaryDisplay.classList.remove('hidden');
+            monthlySalaryInput.classList.add('hidden');
+            calculateBalance(); // Recalculate balance after salary change
+        };
+
+        monthlySalaryInput.addEventListener('blur', saveMonthlySalary);
+        monthlySalaryInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                saveMonthlySalary();
+            }
+        });
+    </script>
+</body>
+</html>
+
